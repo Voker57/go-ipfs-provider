@@ -179,8 +179,7 @@ func NewBlockstoreProvider(bstore blocks.Blockstore) KeyChanFunc {
 // Pinner interface defines how the simple.Reprovider wants to interact
 // with a Pinning service
 type Pinner interface {
-	DirectKeys(ctx context.Context) ([]cid.Cid, error)
-	RecursiveKeys(ctx context.Context) ([]cid.Cid, error)
+	PinnedCids(recursive bool) ([]cid.Cid, error)
 }
 
 // NewPinnedProvider returns provider supplying pinned keys
@@ -216,21 +215,21 @@ func pinSet(ctx context.Context, pinning Pinner, dag ipld.DAGService, onlyRoots 
 		defer cancel()
 		defer close(set.New)
 
-		dkeys, err := pinning.DirectKeys(ctx)
+		directCids, err := pinning.PinnedCids(false)
 		if err != nil {
-			logR.Errorf("reprovide direct pins: %s", err)
 			return
 		}
-		for _, key := range dkeys {
+		
+		recursiveCids, err := pinning.PinnedCids(true)
+		if err != nil {
+			return
+		}
+		
+		for _, key := range directCids {
 			set.Visitor(ctx)(key)
 		}
 
-		rkeys, err := pinning.RecursiveKeys(ctx)
-		if err != nil {
-			logR.Errorf("reprovide indirect pins: %s", err)
-			return
-		}
-		for _, key := range rkeys {
+		for _, key := range recursiveCids {
 			if onlyRoots {
 				set.Visitor(ctx)(key)
 			} else {
